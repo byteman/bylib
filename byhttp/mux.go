@@ -86,21 +86,21 @@ func DefaultHandler(w http.ResponseWriter, r *http.Request) {
 
 	path:=r.URL.Path
 
-	//LogDebug("URL=%s",path)
+	//Debug("URL=%s",path)
 	ctx:=MuxerContext{
 		w:w,
 		r:r,
 	}
 
 	if r.Method == "GET"{
-		//LogDebug("GET path=%s",path)
+		//Debug("GET path=%s",path)
 		if h,ok:=mux.GetHandlers[path];ok{
 			//fmt.Println("----------")
 			h(&ctx)
 		}
 
 	}else if r.Method == "POST"{
-		bylog.LogDebug("POST path=%s",path)
+		bylog.Debug("POST path=%s",path)
 		if h,ok:=mux.PostHandlers[path];ok{
 			h(&ctx)
 		}
@@ -150,16 +150,16 @@ func StartMuxServer(port int) {
 	if err!=nil{
 		return
 	}
-	bylog.LogDebug("workDir=%s",path)
+	bylog.Debug("workDir=%s",path)
 	//http.Handle("/css/", http.FileServer(http.Dir(path+"/web")))
 	//http.Handle("/js/", http.FileServer(http.Dir(path+"/web")))
 	http.Handle("/",http.FileServer(http.Dir(path+"/web")))
 	//http.HandleFunc("/", IndexHandler)
 	for url,_:= range mux.AllUrl{
-		bylog.LogDebug("url=%s",url)
+		bylog.Debug("url=%s",url)
 		http.HandleFunc(url,DefaultHandler)
 	}
 
-	bylog.LogDebug("http server start @%d",port)
+	bylog.Debug("http server start @%d",port)
 	http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d",port), nil)
 }

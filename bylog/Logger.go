@@ -7,7 +7,7 @@ import (
 var logger gsyslog.Syslogger
 var debug = false
 var level = 0
-func LogDebug(format string, a ...interface{})  {
+func Debug(format string, a ...interface{})  {
 
 
 	if logger!=nil{
@@ -20,7 +20,7 @@ func LogDebug(format string, a ...interface{})  {
 	}
 
 }
-func LogInfo(format string, a ...interface{})  {
+func Info(format string, a ...interface{})  {
 
 	if logger!=nil{
 		if debug{
@@ -31,7 +31,7 @@ func LogInfo(format string, a ...interface{})  {
 		fmt.Println(fmt.Sprintf(format,a...))
 	}
 }
-func LogErr(format string, a ...interface{})  {
+func Error(format string, a ...interface{})  {
 
 	if logger!=nil{
 		if debug{
