@@ -10,3 +10,4 @@ func BytesToFloat32(bytes []byte) float32 {
 
 	return math.Float32frombits(bits)
 }
+
