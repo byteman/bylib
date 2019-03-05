@@ -82,9 +82,7 @@ func (f *ADT03)sendReadWeight(addr int32)error{
 
 	return f.WriteCmd(addr,cmd)
 }
-func bytes2int16(result []byte)int16{
-	return int16(int16(result[1])<<8)+int16(result[0])
-}
+
 func (f *ADT03)getReadWeight(ss *Sensor)(error){
 	var result [8]byte
 	if n,err:=f.readCmd(ss.Addr,result[:]);err!=nil || n!= 8{
@@ -103,7 +101,7 @@ func (f *ADT03)getReadWeight(ss *Sensor)(error){
 		return fmt.Errorf("error data %v",result)
 	}
 
-	ss.Value = int32(bytes2int16(result[4:6]))
+	ss.Value = int32(byutil.GetLittleInt16(result[4:6]))
 	//fmt.Println("weight=",ss.Weight)
 	if result[6]&0x2 != 0{
 		ss.State.Still = true
@@ -166,7 +164,7 @@ func (f *ADT03)readSensor(ss *Sensor)(err error){
 	ss.Online = true
 	return nil
 }
-
+//修改地址
 func (ADT03) ModifyAddr(oldAddr, newAddr int32) error {
 	panic("implement me")
 }

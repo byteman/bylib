@@ -4,8 +4,14 @@ import (
 	"bylib/bylog"
 	"bylib/byopenwrt"
 	"encoding/binary"
+	"github.com/xiegeo/modbusone/crc"
 	"time"
 )
+
+func AppendCrc16(bs []byte) []byte {
+	return crc.New().Sum(bs)
+
+}
 
 func MbNowBytes()[]uint16{
 	buf:=[6]byte{}
