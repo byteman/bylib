@@ -29,6 +29,7 @@ type WriteCloser interface {
 }
 // ClientConn represents a client connection to a TCP server.
 type ClientConn struct {
+	laddr	  string
 	addr      string
 	opts      options
 	netid     int64
@@ -67,6 +68,7 @@ func NewClientConn(netid int64, c net.Conn, opt ...ServerOption) *ClientConn {
 
 func newClientConnWithOptions(netid int64, c net.Conn, opts options) *ClientConn {
 	cc := &ClientConn{
+		laddr:	   c.LocalAddr().String(),
 		addr:      c.RemoteAddr().String(),
 		opts:      opts,
 		netid:     netid,
@@ -77,6 +79,7 @@ func newClientConnWithOptions(netid int64, c net.Conn, opts options) *ClientConn
 		handlerCh: make(chan MessageHandler, opts.bufferSize),
 		heart:     time.Now().UnixNano(),
 	}
+	bylog.Debug("local addr=%s remote addr=%s",cc.laddr,cc.addr)
 	cc.ctx, cc.cancel = context.WithCancel(context.Background())
 	cc.timing = NewTimingWheel(cc.ctx)
 	cc.name = c.RemoteAddr().String()
@@ -200,7 +203,16 @@ func (cc *ClientConn) reconnect() {
 	var c net.Conn
 	var err error
 
-	c, err = net.Dial("udp", cc.addr)
+
+
+	lAddr,err:=net.ResolveUDPAddr("udp",cc.laddr)
+	rAddr,err:=net.ResolveUDPAddr("udp",cc.addr)
+
+
+	//net.ResolveUDPAddr("udp","127.0.0.1:12345")
+	c, err = net.DialUDP("udp", lAddr,rAddr)
+	//
+	//c, err = net.DialUDP("udp", cc.addr)
 	if err != nil {
 		bylog.Fatal("net dial error", err)
 	}
@@ -305,12 +317,15 @@ func readLoop(c WriteCloser, wg *sync.WaitGroup) {
 			msg, err = codec.Decode(rawConn)
 			if err != nil {
 				bylog.Error("error decoding message %v\n", err)
-				if _, ok := err.(ErrUndefined); ok {
-					// update heart beats
-					setHeartBeatFunc(time.Now().UnixNano())
-					continue
-				}
-				return
+				continue
+
+				//UDP解码错误的话，直接跳过就可以了。
+				//if _, ok := err.(ErrUndefined); ok {
+				//	// update heart beats
+				//	setHeartBeatFunc(time.Now().UnixNano())
+				//	continue
+				//}
+				//return
 			}
 			setHeartBeatFunc(time.Now().UnixNano())
 			handler := GetHandlerFunc(msg.MessageNumber())

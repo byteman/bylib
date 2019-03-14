@@ -2,6 +2,7 @@ package byopenwrt
 
 import (
 	"bylib/bylog"
+	"bylib/byutils"
 	"fmt"
 	"github.com/go-cmd/cmd"
 	"strconv"
@@ -9,14 +10,7 @@ import (
 	"time"
 )
 
-type OpDateTime struct{
-	Year uint8
-	Month uint8
-	Day uint8
-	Hour uint8
-	Minute uint8
-	Second uint8
-}
+
 //把硬件时钟设置为系统时钟
 func SyncHwClockFromSysClock()error{
 	aps:=cmd.NewCmd("hwclock","-w")
@@ -29,7 +23,7 @@ func SyncHwClockFromSysClock()error{
 	return nil
 }
 //设置系统时钟
-func SetSysDateTime(odt OpDateTime)error{
+func SetSysDateTime(odt byutil.OpDateTime)error{
 	date:=fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d" ,int(2000+int(odt.Year)),odt.Month,odt.Day,odt.Hour,odt.Minute,odt.Second)
 	//time:=fmt.Sprintf("%02d:%02d:%02d",odt.Hour,odt.Minute,odt.Second)
 	//date := time.Date(int(odt.Year),
@@ -55,13 +49,31 @@ func SetSysDateTime(odt OpDateTime)error{
 
 	return nil
 }
-func SetHardDateTime(odt OpDateTime)error{
+func SetHardDateTime(odt byutil.OpDateTime)error{
 	return nil
 }
-func GetHardDateTime(odt *OpDateTime)(err error){
+func GetHardDateTime(odt *byutil.OpDateTime)(err error){
 	return nil
 }
-func GetSysDateTime(odt *OpDateTime)error{
+func MbDateTimeBytes()[]uint16{
+	buf:=[6]byte{}
+	odt:=byutil.OpDateTime{}
+	err:=GetSysDateTime(&odt)
+	if err!=nil{
+		bylog.Error("GetSysDateTime err=%v",err)
+		return byutil.MbNowBytes()
+	}
+	buf[0] = byte(odt.Year)
+	buf[1] = byte(odt.Month)
+	buf[2] = byte(odt.Day)
+	buf[3] = byte(odt.Hour)
+	buf[4] = byte(odt.Minute)
+	buf[5] = byte(odt.Second)
+
+	return byutil.MbBytesToUint16(buf[:])
+
+}
+func GetSysDateTime(odt *byutil.OpDateTime)error{
 	//x:=time.Now() //这种方式获取到的时间是utc时间
 	aps:=cmd.NewCmd("date","+%Y-%m-%d-%H-%M-%S")
 

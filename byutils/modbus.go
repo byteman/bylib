@@ -2,7 +2,6 @@ package byutil
 
 import (
 	"bylib/bylog"
-	"bylib/byopenwrt"
 	"encoding/binary"
 	"github.com/xiegeo/modbusone/crc"
 	"time"
@@ -26,24 +25,7 @@ func MbNowBytes()[]uint16{
 	return MbBytesToUint16(buf[:])
 
 }
-func MbDateTimeBytes()[]uint16{
-	buf:=[6]byte{}
-	odt:=byopenwrt.OpDateTime{}
-	err:=byopenwrt.GetSysDateTime(&odt)
-	if err!=nil{
-		bylog.Error("GetSysDateTime err=%v",err)
-		return MbNowBytes()
-	}
-	buf[0] = byte(odt.Year)
-	buf[1] = byte(odt.Month)
-	buf[2] = byte(odt.Day)
-	buf[3] = byte(odt.Hour)
-	buf[4] = byte(odt.Minute)
-	buf[5] = byte(odt.Second)
-	//bylog.Debug("buf=% x",buf)
-	return MbBytesToUint16(buf[:])
 
-}
 func MbInt32ToUint16(value int32)[]uint16{
 	var x [2]uint16
 	x[0] = uint16((value >> 16)&0xffff)

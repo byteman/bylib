@@ -78,9 +78,10 @@ func (f *WZK01)calibrateK(addr int32,weight int32)error{
 	return nil
 
 }
+//读取重量的命令.
 func (f *WZK01)sendReadWeight(addr int32)error{
 	//查询全部称台实时重量.
-	cmd:=[]byte{0xFE,0,7,byte(addr),CMD_READ_WGT,0,}
+	cmd:=[]byte{0x55,0xFE,0xAA,0,7,byte(addr),CMD_READ_WGT,0,}
 	//求异或.
 
 	crc16:=byutil.CRC16BigEndian(cmd)
@@ -93,10 +94,7 @@ func (f *WZK01)sendReadWeight(addr int32)error{
 }
 
 func (f *WZK01)getReadWeight(ss *SensorSet)(error){
-	//var maxSize = ss.Num*4 + 9
-	//if f.Buffer==nil || len(f.Buffer) < maxSize{
-	//	f.Buffer=make([]byte,50)
-	//}
+
 	var result []byte//[maxSize]byte //最大长度
 	var err error
 	if result,err=f.readCmd(ss.Addr);err!=nil || result==nil{
@@ -104,24 +102,27 @@ func (f *WZK01)getReadWeight(ss *SensorSet)(error){
 	}
 	resize:=len(result)
 	if resize < rtuMinSize{
-		byutil.HexDump("recv<---",result)
+		byutil.HexDump("error minSize  <---",result)
 		return fmt.Errorf("read len error")
 	}
 
-	if result[0] != 0x7F {
+	if result[0] != 0xAA || result[1] != 0x7F || result[2] != 0x55 {
 		//错误的数据格式.
 		return fmt.Errorf("error data %v",result)
 	}
 	crc1:=byutil.CRC16LittleEndian(result[:resize-2])
 	crc2:=uint16(byutil.GetLittleInt16(result[resize-2:]))
 	if crc1!=crc2{
+		bylog.Error("size=%d data=% X",resize,result)
 		return fmt.Errorf("crc err % x != % x",crc1, crc2)
 	}
 	sn:=(len(result) - rtuMinSize)/4
-	byutil.FreqPrintf("sn")
+	//bylog.Debug("sensor addr=%d % X",ss.Addr,result)
+
+	//byutil.FreqPrintf("sn")
 	//bylog.Debug("sn=%d",sn)
 	for i:=0; i < sn; i++{
-		addr:=int(result[7+i*4])
+		addr:=int(result[9+i*4])
 		//bylog.Debug("addr=%d",addr)
 		//判断地址是否已经存在了.
 		if _,ok:=ss.Sensors[addr];!ok{
@@ -129,7 +130,9 @@ func (f *WZK01)getReadWeight(ss *SensorSet)(error){
 		}
 		ss.Sensors[addr].Addr = int32(addr)
 
-		var state = result[8+i*4]
+		var state = result[10+i*4]
+		ss.Sensors[addr].StateValue = state
+
 		//fmt.Println("weight=",ss.Weight)
 		if state&0x1 != 0{
 			ss.Sensors[addr].State.Zero = true
@@ -142,13 +145,17 @@ func (f *WZK01)getReadWeight(ss *SensorSet)(error){
 			ss.Sensors[addr].State.Still = false
 		}
 		//0x111000 芯片故障|传感器故障|开机零点故障
-		if state&0x38 != 0{
+		if state&0x30 != 0{
 			ss.Sensors[addr].State.Error = true
 		}else{
 			ss.Sensors[addr].State.Error = false
 		}
-		value:=int32(byutil.GetBigEndianInt16(result[9+i*4:11+i*4]))
+		value:=int32(byutil.GetBigEndianInt16(result[11+i*4:13+i*4]))
 		ss.Sensors[addr].Value=value
+		//if addr == 1{
+		//
+		//	bylog.Debug("wg=%d state=%x",value,state)
+		//}
 	}
 
 
@@ -171,7 +178,7 @@ func (f *WZK01)writeCmd(addr int32,cmd []byte)error {
 
 const(
 	rtuMaxSize=256
-	rtuMinSize=8
+	rtuMinSize=10
 )
 
 func (f *WZK01)readCmd(addr int32)(result []byte,err error){
@@ -187,7 +194,7 @@ func (f *WZK01)readCmd(addr int32)(result []byte,err error){
 		return
 	}
 
-	bytesToRead:=int(byutil.GetBigEndianInt16(data[1:3]))+1
+	bytesToRead:=int(byutil.GetBigEndianInt16(data[3:5]))+3
 	//bylog.Debug("get len=% x % x",bytesToRead,data[:n])
 	if n < bytesToRead {
 		if bytesToRead > rtuMinSize && bytesToRead <= rtuMaxSize {

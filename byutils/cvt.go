@@ -13,7 +13,12 @@ func BytesToFloat32(bytes []byte) float32 {
 
 	return math.Float32frombits(bits)
 }
-
+func Abs(a,b int)int{
+	if a > b {
+		return a-b
+	}
+	return b-a
+}
 
 func GetLittleInt16(result []byte)int16{
 	return int16(int16(result[1])<<8)+int16(result[0])

@@ -46,6 +46,10 @@ func SetNetWork(ifname string,cfg *NetConfig)error{
 		bylog.Error("network.lan.ipaddr=%s %v",cfg.Ip,err)
 		return err
 	}
+	if err:=UciSetString(fmt.Sprintf("network.%s.macaddr",ifname),cfg.Mac);err!=nil{
+		bylog.Error("network.lan.mac=%s %v",cfg.Mac,err)
+		return err
+	}
 
 	if err:=UciCommit();err!=nil{
 		bylog.Error("UciCommit failed %s %v",cfg.Ip,err)
@@ -92,13 +96,32 @@ func GetNetWorkStatus2(ifname string,cfg *NetConfig)error{
 	return nil
 
 }
+
+func CheckNetWorkConfig(cfg *NetConfig)error{
+	return nil
+	address := net.ParseIP(cfg.Ip)
+	if address == nil {
+		return errors.New("ip format error")
+	}
+	mask := net.ParseIP(cfg.Mask)
+	if mask == nil {
+		return errors.New("mask format error")
+	}
+	return nil
+}
 //获取网络参数
 func GetNetWorkConfig(ifname string,cfg *NetConfig)error{
+
+	if err:=CheckNetWorkConfig(cfg);err!=nil{
+		return err
+	}
+
 	ip,err:=UciGetString(fmt.Sprintf("network.%s.ipaddr",ifname))
 	if err!=nil{
 		return err
 	}
 	cfg.Ip = ip
+	bylog.Debug("ip=%s",ip)
 	netype,err:=UciGetString(fmt.Sprintf("network.%s.proto",ifname))
 	if err!=nil{
 		return err
