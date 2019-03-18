@@ -9,12 +9,14 @@ import (
 const (
 	MAX_STILL_COUNT=3
 )
+
 //传感器集合/称，一般对应一个称连接n个传感器
 type SensorSet struct{
 	Addr int32 `json:"addr"`//集散器ID 
 	Online bool `json:"-"`
 	TimeStamp int64 `json:"-"`//上次的时间戳 
 	Timeout int32 `json:"-"`//超时计数器.
+	Diffs map[int]int32 `json:"diffs"` //零点集合.
 	Zeros map[int]int32 `json:"zeros"`//零点集合.
 	Sensors map[int]*Sensor  //传感器地址和传感器信息的map
 	Lock sync.Mutex `json:"-"`
@@ -27,6 +29,9 @@ func (ss *SensorSet)Zero(addr int)int32{
 		return z
 	}
 	return 0
+}
+func (ss *SensorSet)SetDiff(addr int,value int32){
+	ss.Diffs[addr] = value
 }
 func (ss *SensorSet)SetZero(addr int,value int32){
 	ss.Zeros[addr] = value
@@ -71,6 +76,7 @@ func (ss *SensorSet)Update(){
 		if z,ok:=ss.Zeros[int(s.Addr)];ok{
 			s.CalcValue = s.Value-z
 		}
+
 	}
 }
 func (ss *SensorSet)GetValues()[]uint16{
@@ -130,7 +136,8 @@ func (sset *SensorSet)Compare(old *SensorSet,diff int32,still uint8)(sg []*Senso
 		//if sset.Addr==1 && addr==2{
 		//	bylog.Debug("w=%d state=%x still=%d",s.Value,s.StateValue,s.StillCount)
 		//}
-		if !s.State.Still || s.State.Error {
+		//if !s.State.Still || s.State.Error {
+		if  s.State.Error {
 			s.StillCount=0
 			continue
 		}
@@ -160,6 +167,14 @@ func (sset *SensorSet)Compare(old *SensorSet,diff int32,still uint8)(sg []*Senso
 
 		//bylog.Debug("addr=%d new=%d old=%d diff=%d %d",addr,s.CalcValue,old.Sensors[addr].CalcValue,df,diff)
 
+		if sdiff,ok:=sset.Diffs[addr];ok{
+			//如果有传感器自己的sdiff，就用传感器自己的sdiff.
+
+			diff = sdiff
+		}else{
+			//否则设置成默认的.
+			sset.Diffs[addr]= int32(diff)
+		}
 
 		if df > int(diff){
 
@@ -171,16 +186,19 @@ func (sset *SensorSet)Compare(old *SensorSet,diff int32,still uint8)(sg []*Senso
 				TimeStamp:s.TimeStamp,
 				Timeout:s.Timeout,
 			})
-		}
-		//更新旧的值
-		old.Sensors[addr].Value = s.Value
-		old.Sensors[addr].CalcValue = s.CalcValue
-		old.Sensors[addr].Addr = s.Addr
-		old.Sensors[addr].State = s.State
-		old.Sensors[addr].StateValue = s.StateValue
+			//重量阀值超过旧的值，才更新旧的值
+			old.Sensors[addr].Value = s.Value
+			old.Sensors[addr].CalcValue = s.CalcValue
+			old.Sensors[addr].Addr = s.Addr
+			old.Sensors[addr].State = s.State
+			old.Sensors[addr].StateValue = s.StateValue
 
-		old.Sensors[addr].TimeStamp = s.TimeStamp
-		old.Sensors[addr].Timeout = s.Timeout
+			old.Sensors[addr].TimeStamp = s.TimeStamp
+			old.Sensors[addr].Timeout = s.Timeout
+		}else{
+			//否则如果小于阀值，但是
+		}
+
 	}
 	return
 }
@@ -189,6 +207,7 @@ func NewSensorSet(addr int32 )*SensorSet  {
 		Addr:addr,
 		Sensors:make(map[int]*Sensor),
 		Zeros:make(map[int]int32),
+		Diffs:make(map[int]int32),
 	}
 
 	return ss

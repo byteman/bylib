@@ -62,6 +62,19 @@ func (c *MuxerContext) SaveUploadedFile(file *multipart.FileHeader, dst string) 
 	io.Copy(out, src)
 	return nil
 }
+func (c *MuxerContext) GetQuery(key string) (string, bool) {
+	if values, ok := c.GetQueryArray(key); ok {
+		return values[0], ok
+	}
+	return "", false
+}
+
+func (c *MuxerContext) GetQueryArray(key string) ([]string, bool) {
+	if values, ok := c.r.URL.Query()[key]; ok && len(values) > 0 {
+		return values, true
+	}
+	return []string{}, false
+}
 func (c *MuxerContext)BindJson(v interface{})error{
 	b, err := ioutil.ReadAll(c.r.Body)
 	if err != nil {
@@ -142,8 +155,18 @@ func (m *MuxServer)Post(url string, handler HttpHandler)error{
 	return nil
 }
 
+var server *http.Server=nil
 
+func StopMuxServer(){
+	if server!=nil{
+		server.Close()
+	}
+}
+func listenServer(addr string, handler http.Handler)error{
 
+	server = &http.Server{Addr: addr, Handler: handler}
+	return http.ListenAndServe(addr, nil)
+}
 func StartMuxServer(port int) {
 	//m := mux.NewRouter()
 	path,err:=byutil.GetCurrentPath()
@@ -159,7 +182,7 @@ func StartMuxServer(port int) {
 		bylog.Debug("url=%s",url)
 		http.HandleFunc(url,DefaultHandler)
 	}
-
 	bylog.Debug("http server start @%d",port)
-	http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d",port), nil)
+	listenServer(fmt.Sprintf("0.0.0.0:%d",port),nil)
+
 }
