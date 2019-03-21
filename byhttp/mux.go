@@ -142,6 +142,8 @@ func GetMuxServer()*MuxServer{
 	}
 	return &mux
 }
+
+
 //注册一个Get请求.
 func (m *MuxServer)Get(url string, handler HttpHandler)error{
 	m.AllUrl[url]=0

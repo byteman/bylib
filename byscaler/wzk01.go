@@ -12,16 +12,16 @@ import (
 )
 const(
 	CMD_CLEAR_ZERO = 0 //清零
-	CMD_READ_WGT = iota //查询单个或者全部称台的重量和状态
-	CMD_QUERY_CHANGE_SENSOR=iota //查询重量有更改的称台
-	CMD_QUERY_ERROR_SENSOR=iota //查询有故障的传感器.
-	CMD_SET_WGT=iota //设置称台重量
+	CMD_READ_WGT = 1 //查询单个或者全部称台的重量和状态
+	CMD_QUERY_CHANGE_SENSOR=2 //查询重量有更改的称台
+	CMD_QUERY_ERROR_SENSOR=3 //查询有故障的传感器.
+	CMD_SET_WGT=4 //设置称台重量
 	CMD_CUSTOM_READ_AD=105 //读取AD值
-	CMD_CUSTOM_CALIB_ZERO=iota //标定零点
-	CMD_CUSTOM_CALIB_WGT=iota  //标定重量
-	CMD_CUSTOM_WRITE_PARAM=iota  //参数写 传感器个数/阀值/读取时间
-	CMD_CUSTOM_READ_PARAM=iota  //参数读 传感器个数/阀值/读取时间
-	CMD_CUSTOM_WRITE_SENSOR_ADDR=iota //传感器地址设置，只写
+	CMD_CUSTOM_CALIB_ZERO=106 //标定零点
+	CMD_CUSTOM_CALIB_WGT=107  //标定重量
+	CMD_CUSTOM_WRITE_PARAM=108  //参数写 传感器个数/阀值/读取时间
+	CMD_CUSTOM_READ_PARAM=109  //参数读 传感器个数/阀值/读取时间
+	CMD_CUSTOM_WRITE_SENSOR_ADDR=110 //传感器地址设置，只写
 
 )
 //wzk01的管理类. wzk01是一个集散控制器，下面接了n个adt03.
@@ -34,48 +34,101 @@ type WZK01 struct {
 	Timeout int
 	Buffer []byte //数据
 }
+//
+//func (f *WZK01)ReadCmd(addr int32,result []byte)(n int, err error){
+//	f.PortMutex.Lock()
+//	defer func() {
+//		f.PortMutex.Unlock()
+//	}()
+//	if n,err=io.ReadFull(f.Port, result[:]);err!=nil{
+//
+//		if err!=nil{
+//			bylog.Error("read sensor[%d] err %v",addr,err)
+//
+//			return 0,err
+//		}
+//	}
+//
+//	return n,nil
+//}
+func (f *WZK01)modifyAddr(jxqAddr,oldAddr,newAddr int32)error{
 
-func (f *WZK01)ReadCmd(addr int32,result []byte)(n int, err error){
+
+	cmd:=[]byte{0x55,0xFE,0xAA,0,9,byte(jxqAddr),CMD_CUSTOM_WRITE_SENSOR_ADDR,0,byte(oldAddr),byte(newAddr)}
+	//求异或.
+
+	crc16:=byutil.CRC16BigEndian(cmd)
+	cmd=append(cmd,byte(crc16>>8))
+	cmd=append(cmd,byte(crc16))
+
 	f.PortMutex.Lock()
 	defer func() {
 		f.PortMutex.Unlock()
 	}()
-	if n,err=io.ReadFull(f.Port, result[:]);err!=nil{
-
-		if err!=nil{
-			bylog.Error("read sensor[%d] err %v",addr,err)
-
-			return 0,err
-		}
-	}
-
-	return n,nil
-}
-func (f *WZK01)calibrateZero(addr int32)error{
-
-	cmd:=[8]byte{0xFE,0x7F,byte(addr),0x4,1,1,1,0}
-	cmd[7]=byutil.Xor(cmd[0:7])
-	bylog.Debug("CalibrateZero %v",cmd)
-	if err:=f.writeCmd(addr,cmd[:]);err!=nil{
+	byutil.HexDump("send->",cmd)
+	if err:=f.writeCmd(jxqAddr,cmd);err!=nil{
 		return err
 	}
-
+	//等待标定结果
+	var result []byte//[maxSize]byte //最大长度
+	var err error
+	if result,err=f.readCmd(jxqAddr);err!=nil || result==nil{
+		return fmt.Errorf("modifyAddr jxq[%d] sensor[%d] err=%v",jxqAddr,oldAddr,err)
+	}
+	bylog.Debug("ack--> %x",result)
 	return nil
 }
-func (f *WZK01)calibrateK(addr int32,weight int32)error{
+func (f *WZK01)calibrateZero(jxqAddr,sensorAddr int32)error{
 
-	cmd:=[8]byte{0xFE,0x7F,byte(addr),0x7,0,0,0,0}
-	cmd[4] = byte(weight&0xff)
-	cmd[5] = byte((weight>>8)&0xff)
-	cmd[6] = byte((weight>>16)&0xff)
+	cmd:=[]byte{0x55,0xFE,0xAA,0,7,byte(jxqAddr),CMD_CUSTOM_CALIB_ZERO,byte(sensorAddr),}
+	//求异或.
 
-	cmd[7]=byutil.Xor(cmd[0:7])
-	bylog.Debug("CalibrateK %v",cmd)
-	if err:=f.writeCmd(addr,cmd[:]);err!=nil{
+	crc16:=byutil.CRC16BigEndian(cmd)
+	cmd=append(cmd,byte(crc16>>8))
+	cmd=append(cmd,byte(crc16))
+	f.PortMutex.Lock()
+	defer func() {
+		f.PortMutex.Unlock()
+	}()
+	byutil.HexDump("send->", cmd)
+	if err:=f.writeCmd(jxqAddr,cmd);err!=nil{
 		return err
 	}
-
+	//等待标定结果
+	var result []byte//[maxSize]byte //最大长度
+	var err error
+	if result,err=f.readCmd(jxqAddr);err!=nil || result==nil{
+		return fmt.Errorf("calibrate zero jxq[%d] sensor[%d] err=%v",jxqAddr,sensorAddr,err)
+	}
+	byutil.HexDump("zero",result)
 	return nil
+}
+func (f *WZK01)calibrateK(jxqAddr,sensorAddr int32,weight int32)error{
+
+	var  wgt  uint16 = uint16(weight)
+	cmd:=[]byte{0x55,0xFE,0xAA,0,9,byte(jxqAddr),CMD_CUSTOM_CALIB_WGT,byte(sensorAddr),
+				byte((wgt>>8)&0xff),byte(wgt&0xff)}
+	//求异或.
+
+	crc16:=byutil.CRC16BigEndian(cmd)
+	cmd=append(cmd,byte(crc16>>8))
+	cmd=append(cmd,byte(crc16))
+	f.PortMutex.Lock()
+	defer func() {
+		f.PortMutex.Unlock()
+	}()
+	byutil.HexDump("send->",cmd)
+	if err:=f.writeCmd(jxqAddr,cmd);err!=nil{
+		return err
+	}
+	//等待标定结果
+	var result []byte//[maxSize]byte //最大长度
+	var err error
+	if result,err=f.readCmd(jxqAddr);err!=nil || result==nil{
+		return fmt.Errorf("calibrate wgt jxq[%d] sensor[%d] err=%v",jxqAddr,sensorAddr,err)
+	}
+	return nil
+
 
 }
 //读取重量的命令.
@@ -100,22 +153,7 @@ func (f *WZK01)getReadWeight(ss *SensorSet)(error){
 	if result,err=f.readCmd(ss.Addr);err!=nil || result==nil{
 		return fmt.Errorf("read sensor[%d] err=%v",ss.Addr,err)
 	}
-	resize:=len(result)
-	if resize < rtuMinSize{
-		byutil.HexDump("error minSize  <---",result)
-		return fmt.Errorf("read len error")
-	}
 
-	if result[0] != 0xAA || result[1] != 0x7F || result[2] != 0x55 {
-		//错误的数据格式.
-		return fmt.Errorf("error data %v",result)
-	}
-	crc1:=byutil.CRC16LittleEndian(result[:resize-2])
-	crc2:=uint16(byutil.GetLittleInt16(result[resize-2:]))
-	if crc1!=crc2{
-		bylog.Error("size=%d data=% X",resize,result)
-		return fmt.Errorf("crc err % x != % x",crc1, crc2)
-	}
 	sn:=(len(result) - rtuMinSize)/4
 	//bylog.Debug("sensor addr=%d % X",ss.Addr,result)
 
@@ -162,10 +200,7 @@ func (f *WZK01)getReadWeight(ss *SensorSet)(error){
 	return nil
 }
 func (f *WZK01)writeCmd(addr int32,cmd []byte)error {
-	f.PortMutex.Lock()
-	defer func() {
-		f.PortMutex.Unlock()
-	}()
+
 	//byutil.HexDump("send->", cmd)
 	if _, err := f.Port.Write(cmd); err != nil {
 		bylog.Error("Write sensor[%d] err %v", addr, err)
@@ -182,10 +217,7 @@ const(
 )
 
 func (f *WZK01)readCmd(addr int32)(result []byte,err error){
-	f.PortMutex.Lock()
-	defer func() {
-		f.PortMutex.Unlock()
-	}()
+
 	var data [rtuMaxSize]byte
 	var n int
 	var n1 int
@@ -211,11 +243,33 @@ func (f *WZK01)readCmd(addr int32)(result []byte,err error){
 	}
 	result = data[:n]
 
+	resize:=len(result)
+	if resize < rtuMinSize{
+		byutil.HexDump("error minSize  <---",result)
+		return result,fmt.Errorf("read len error")
+	}
+	if result[0] != 0xAA || result[1] != 0x7F || result[2] != 0x55 {
+		//错误的数据格式.
+		return result,fmt.Errorf("error data % x",result)
+	}
+	//有可能读取出来的数据是上个设备返回的，要过滤掉.
+	if int32(result[5]) != addr{
+		return result,fmt.Errorf("want addr[%d] != addr[%d]error data %x",addr,result[5],result)
+	}
+	crc1:=byutil.CRC16LittleEndian(result[:resize-2])
+	crc2:=uint16(byutil.GetLittleInt16(result[resize-2:]))
+	if crc1!=crc2{
+		bylog.Error("size=%d data=% X",resize,result)
+		return result,fmt.Errorf("crc err % x != % x",crc1, crc2)
+	}
 	return
 }
 func (f *WZK01)readSensor(ss *SensorSet)(err error){
 	//FE 7F 01 83 03
-
+	f.PortMutex.Lock()
+	defer func() {
+		f.PortMutex.Unlock()
+	}()
 	f.TotalRx++
 	//发送读取命令
 	//Debug("Write sensor[%d] %v",ss.Addr,cmd)
@@ -236,8 +290,8 @@ func (f *WZK01)readSensor(ss *SensorSet)(err error){
 	return nil
 }
 //修改地址
-func (WZK01) ModifyAddr(oldAddr, newAddr int32) error {
-	panic("implement me")
+func (adt *WZK01) ModifyAddr(jxqAddr,oldAddr, newAddr int32) error {
+	return adt.modifyAddr(jxqAddr,oldAddr,newAddr)
 }
 //获取测量重量
 //id 集散器的编号
@@ -246,12 +300,12 @@ func (adt *WZK01) Measure(ss *SensorSet) (err error) {
 	return adt.readSensor(ss)
 }
 
-func (adt *WZK01) CalZero(addr int32) error {
-	return adt.calibrateZero(addr)
+func (adt *WZK01) CalZero(id,addr int32) error {
+	return adt.calibrateZero(id,addr)
 }
 
-func (adt *WZK01) CalKg(addr int32, kg int32) error {
-	return adt.calibrateK(addr,kg)
+func (adt *WZK01) CalKg(id,addr int32, kg int32) error {
+	return adt.calibrateK(id,addr,kg)
 }
 func (adt *WZK01)Open(port,baud int)error{
 	config := serial.Config{
