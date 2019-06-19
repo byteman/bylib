@@ -4,6 +4,8 @@ import (
 	"bylib/bylog"
 	"bylib/byopenwrt"
 	"bylib/byutils"
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"github.com/goburrow/serial"
 	"io"
@@ -103,6 +105,70 @@ func (f *WZK01)calibrateZero(jxqAddr,sensorAddr int32)error{
 	byutil.HexDump("zero",result)
 	return nil
 }
+func (f *WZK01)readParam(jxqAddr int32,para *WZK01_Param)(err error){
+
+
+	cmd:=[]byte{0x55,0xFE,0xAA,0,7,byte(jxqAddr),CMD_CUSTOM_READ_PARAM,0}
+	//求异或.
+
+	crc16:=byutil.CRC16BigEndian(cmd)
+	cmd=append(cmd,byte(crc16>>8))
+	cmd=append(cmd,byte(crc16))
+	f.PortMutex.Lock()
+	defer func() {
+		f.PortMutex.Unlock()
+	}()
+	byutil.HexDump("readParam send->",cmd)
+	if err:=f.writeCmd(jxqAddr,cmd);err!=nil{
+		return err
+	}
+	//等待标定结果
+	var result []byte//[maxSize]byte //最大长度
+
+	if result,err=f.readCmd(jxqAddr);err!=nil || result==nil{
+		return fmt.Errorf("read param  jxq[%d] err=%v",jxqAddr,err)
+	}
+	if len(result) < 18 {
+		return fmt.Errorf("read param  jxq[%d] len!=18",jxqAddr)
+	}
+	bylog.Debug("readParam recv-> % X ",result)
+	buf:=bytes.NewBuffer(result[9:16])
+	return binary.Read(buf,binary.BigEndian,para)
+
+}
+func (f *WZK01)writeParam(jxqAddr int32,para *WZK01_Param)(err error){
+
+	cmd:=[]byte{0x55,0xFE,0xAA,0,7,byte(jxqAddr),CMD_CUSTOM_WRITE_PARAM,0}
+
+	//更新长度
+	cmd[4] = 7 + byte(binary.Size(*para))
+	buf:=bytes.NewBuffer(cmd)
+	//写入头部数据
+	binary.Write(buf,binary.BigEndian,*para)
+	//计算crc16
+	crc16:=byutil.CRC16BigEndian(buf.Bytes())
+	//写入crc16
+	binary.Write(buf,binary.BigEndian,crc16)
+	//cmd=append(cmd,byte(crc16>>8))
+	//cmd=append(cmd,byte(crc16))
+	f.PortMutex.Lock()
+	defer func() {
+		f.PortMutex.Unlock()
+	}()
+	byutil.HexDump("writeParam send->",buf.Bytes())
+	if err:=f.writeCmd(jxqAddr,buf.Bytes());err!=nil{
+		return err
+	}
+	//等待标定结果
+	var result []byte//[maxSize]byte //最大长度
+
+	if result,err=f.readCmd(jxqAddr);err!=nil || result==nil{
+		return fmt.Errorf("read param  jxq[%d] err=%v",jxqAddr,err)
+	}
+
+	return nil
+
+}
 func (f *WZK01)calibrateK(jxqAddr,sensorAddr int32,weight int32)error{
 
 	var  wgt  uint16 = uint16(weight)
@@ -170,8 +236,10 @@ func (f *WZK01)getReadWeight(ss *SensorSet)(error){
 
 		var state = result[10+i*4]
 		ss.Sensors[addr].StateValue = state
+		//if addr < 3{
+		//	bylog.Debug("addr%d state=%x",addr,state)
+		//}
 
-		//fmt.Println("weight=",ss.Weight)
 		if state&0x1 != 0{
 			ss.Sensors[addr].State.Zero = true
 		}else{
@@ -306,6 +374,21 @@ func (adt *WZK01) CalZero(id,addr int32) error {
 
 func (adt *WZK01) CalKg(id,addr int32, kg int32) error {
 	return adt.calibrateK(id,addr,kg)
+}
+type WZK01_Param struct {
+	SensorNum uint16 `json:"sensor_num"`//小数点位数 0 - 4
+	ReadTimeOut uint16 `json:"sensor_timeout"`//分度值[高位量程] 1，2，5，10，20，50，100。
+	Limit uint16 `json:"limit"`//分度值[低位量程] 1，2，5，10，20，50，100。
+	SlaveAddr uint8 `json:"slave_addr"`
+}
+//读取控制器参数
+func (adt *WZK01)ReadParam(id int32,para *WZK01_Param)(err error){
+
+	return adt.readParam(id,para)
+}
+//保存控制器参数
+func (adt *WZK01)WriteParam(id int32,para *WZK01_Param)(err error){
+	return adt.writeParam(id,para)
 }
 func (adt *WZK01)Open(port,baud int)error{
 	config := serial.Config{

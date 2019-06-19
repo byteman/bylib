@@ -70,7 +70,7 @@ func (s *SysAdmin)doUpload(dst string)error{
 
 	return status.Error
 }
-func (s *SysAdmin)UploadFile(ctx *byhttp.MuxerContext)error{
+func (s *SysAdmin)SysUpdate(ctx *byhttp.MuxerContext)error{
 	file, err := ctx.FormFile("file")
 	if err!=nil{
 		bylog.Error("FromFile err %v",err)
@@ -128,7 +128,7 @@ func (self *SysAdmin)ResetDevice(ctx *byhttp.MuxerContext)error{
 }
 func (s *SysAdmin)Start()error{
 	//s.HookSignal()
-	byhttp.GetMuxServer().Post("/upload",s.UploadFile)
+	byhttp.GetMuxServer().Post("/upload",s.SysUpdate)
 	byhttp.GetMuxServer().Get("/device/reset",s.ResetDevice)
 	byhttp.GetMuxServer().Get("/time",s.getSysTime)
 	byhttp.GetMuxServer().Post("/time",s.setSysTime)

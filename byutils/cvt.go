@@ -19,7 +19,12 @@ func Abs(a,b int)int{
 	}
 	return b-a
 }
-
+func GetLittleUInt32(result []byte)uint32{
+	return uint32(uint32(result[3])<<24)+
+		uint32(uint32(result[2])<<16)+
+		uint32(uint32(result[1])<<8)+
+		uint32(result[0])
+}
 func GetLittleInt16(result []byte)int16{
 	return int16(int16(result[1])<<8)+int16(result[0])
 }

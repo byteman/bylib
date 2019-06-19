@@ -1,5 +1,11 @@
 package byutil
 
+import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+)
+
 func Xor(data []byte)byte{
 	var sum=data[0]
 	tmp:=data[1:]
@@ -55,4 +61,18 @@ func CRC16BigEndian(data []byte) uint16 {
 }
 func CRC16LittleEndian(data []byte) uint16 {
 	return Uint16Big2LittleEndian(CRC16BigEndian(data))
+}
+func encode(data interface{}) ([]byte) {
+	buf:=bytes.NewBuffer(nil)
+	binary.Write(buf,binary.LittleEndian,data)
+	return buf.Bytes()
+}
+func CalcCrc16(v interface{})(crc16 uint16,err error){
+	data:= encode(v)
+
+	if len(data) < 2{
+		return 0,errors.New("len < 2")
+	}
+
+	return CRC16BigEndian(data[:len(data)-2]),nil
 }

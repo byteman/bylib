@@ -10,3 +10,16 @@ func Test_Xor2(t *testing.T) {
 func TestHello(t *testing.T)  {
 
 }
+type MyPerson struct {
+	Age int32
+	Tall int8
+}
+func TestEncodeStruct(t *testing.T)  {
+	p:=MyPerson{
+		Age:10,
+		Tall:1,
+	}
+	data:=encode(p)
+
+	t.Logf("data= % x ",data)
+}

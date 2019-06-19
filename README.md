@@ -10,5 +10,6 @@
 	* byopenwrt openwrt相关的操作
 	* byutils   工具函数
 	* byscaler  称重相关
+	* byproto   自定义通讯协议框架
 	
 	

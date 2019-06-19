@@ -7,10 +7,12 @@ type SensorProtocol interface {
 type Addr int32
 
 type State struct{
-	Error  bool		//设备故障
-	Overflow bool 	//重量溢出
-	Still bool 		//是否稳定
-	Zero bool 		//是否零位.
+	Positive  bool //正负号 0 正 1 负数
+	SensorErr bool 	//传感器故障、脱落 bit5  0 正常 1 故障
+	Error  bool		//设备故障. bit3
+	Overflow bool 	//重量溢出. bit2
+	Still bool 		//是否稳定.	bit1
+	Zero bool 		//是否零位. bit0
 }
 //单个传感器
 type Sensor struct{

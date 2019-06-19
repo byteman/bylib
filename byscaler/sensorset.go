@@ -36,11 +36,27 @@ func (ss *SensorSet)SetDiff(addr int,value int32){
 func (ss *SensorSet)SetZero(addr int,value int32){
 	ss.Zeros[addr] = value
 }
+func (ss *SensorSet)SetValue(addr int,value int32){
+	ss.Lock.Lock()
+	defer ss.Lock.Unlock()
+
+	ss.Sensors[addr].CalcValue = value
+
+}
 func (ss *SensorSet)SetAllZero(value int32){
 	ss.Lock.Lock()
 	defer ss.Lock.Unlock()
 	for _,s:=range ss.Sensors{
 		s.CalcValue = value
+	}
+
+}
+
+func (ss *SensorSet)UpdateDiff(value int32){
+	ss.Lock.Lock()
+	defer ss.Lock.Unlock()
+	for addr,_:=range ss.Sensors{
+		ss.Diffs[addr]=value
 	}
 
 }
@@ -137,6 +153,12 @@ func (sset *SensorSet)Compare(old *SensorSet,diff int32,still uint8)(sg []*Senso
 		//	bylog.Debug("w=%d state=%x still=%d",s.Value,s.StateValue,s.StillCount)
 		//}
 		//if !s.State.Still || s.State.Error {
+
+		if _,ok:=sset.Diffs[addr];!ok{
+			//如果没有自己的差异值，就用全局的.
+			sset.Diffs[addr]= int32(diff)
+		}
+
 		if  s.State.Error {
 			s.StillCount=0
 			continue
@@ -177,7 +199,9 @@ func (sset *SensorSet)Compare(old *SensorSet,diff int32,still uint8)(sg []*Senso
 		}
 
 		if df > int(diff){
-
+			if addr == 2{
+				bylog.Debug("df=%d diff=%d",df,diff)
+			}
 			sg=append(sg,&Sensor{
 				Addr: int32(addr),
 				CalcValue:s.CalcValue - old.Sensors[addr].CalcValue,

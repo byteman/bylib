@@ -69,6 +69,7 @@ func NewMbBuffer()*MbBuffer{
 		buf:make([]uint16,0,0),
 	}
 }
+
 func (mb *MbBuffer)Uint16()[]uint16{
 	return mb.buf
 }
