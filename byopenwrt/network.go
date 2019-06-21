@@ -15,11 +15,11 @@ const(
 	NetTypeUnknown=iota
 )
 type NetConfig struct{
-	Type int
-	Ip string
-	Mask string
-	Gateway string
-	Mac string
+	Type int `json:"type"`
+	Ip string `json:"ip"`
+	Mask string `json:"mask"`
+	Gateway string `json:"gateway"`
+	Mac string `json:"mac"`
 }
 //设置网络参数
 func SetNetWork(ifname string,cfg *NetConfig)error{
