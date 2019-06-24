@@ -50,6 +50,11 @@ var product = bydefine.ProductModel{
 	Name:"unknown",
 	SerialNo:"123456",
 }
+
+const(
+	REQ_DISCOVEY="request_discovery"
+	REQ_MODIFY_NET="request_modify_netcfg"
+)
 /**
 请求网络发现.
 {
@@ -77,10 +82,10 @@ func discoveryNotify(discovered Discovered) {
 	cmd:=result.Get("cmd").String()
 
 	switch cmd {
-	case "request_netcfg":
+	case REQ_DISCOVEY:
 		discoveryNetCfg(cmd,result)
 		break
-	case "modify_netcfg":
+	case REQ_MODIFY_NET:
 		modifyNetCfg(cmd,result)
 		break
 	}

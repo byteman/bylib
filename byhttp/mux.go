@@ -176,15 +176,24 @@ func StartMuxServer(port int) {
 		return
 	}
 	bylog.Debug("workDir=%s",path)
-	//http.Handle("/css/", http.FileServer(http.Dir(path+"/web")))
-	//http.Handle("/js/", http.FileServer(http.Dir(path+"/web")))
+
 	http.Handle("/",http.FileServer(http.Dir(path+"/web")))
-	//http.HandleFunc("/", IndexHandler)
+
 	for url,_:= range mux.AllUrl{
-		bylog.Debug("url=%s",url)
+		bylog.Debug("registered url=%s",url)
 		http.HandleFunc(url,DefaultHandler)
 	}
 	bylog.Debug("http server start @%d",port)
 	listenServer(fmt.Sprintf("0.0.0.0:%d",port),nil)
 
+}
+func StartMuxServerWithFs(port int,fs http.FileSystem) {
+
+	http.Handle("/", http.FileServer(fs))
+	for url,_:= range mux.AllUrl{
+		bylog.Debug("registered url=%s",url)
+		http.HandleFunc(url,DefaultHandler)
+	}
+	bylog.Debug("http server start @%d",port)
+	listenServer(fmt.Sprintf("0.0.0.0:%d",port),nil)
 }

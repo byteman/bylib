@@ -56,7 +56,7 @@ func (wp *WzProtocal) RegisterHandler(cmd int, handler Handler) {
 名称			帧头起始标志	从机地址	数据帧长度	命令号	消息体	校验(CRC16)
 长度（字节）	2(AA,55)	1			2			1	N		2
 */
-func (wp *WzProtocal) SendPacket(slaveAddr ,cmd int, data []byte)error {
+func (wp *WzProtocal) SendPacket(slaveAddr ,cmd int, data []byte,flag ...bool)error {
 	var result [65535]byte
 	var n uint16 = 0
 	result[0] = 0xAA
@@ -75,9 +75,13 @@ func (wp *WzProtocal) SendPacket(slaveAddr ,cmd int, data []byte)error {
 	crc:=byutil.CRC16BigEndian(result[:n-2])
 	//写入校验和
 	binary.LittleEndian.PutUint16(result[n-2:],crc)
+	if len(flag) > 0{
+		bylog.Debug("write=% x",result[:n])
+	}
 
-	//bylog.Debug("write=% x",result[:n])
+	wp.Lock.Lock()
 	_,err:=wp.Port.Write(result[:n])
+	wp.Lock.Unlock()
 
 	return  err
 }
@@ -155,7 +159,7 @@ func (wp *WzProtocal) receive() {
 			//bylog.Error("read %v",err)
 			continue
 		}
-		bylog.Debug("Receive % x",data[:n])
+		//bylog.Debug("Receive % x",data[:n])
 		for _,ch:=range data[:n]{
 			wp.parse(ch)
 		}
