@@ -163,7 +163,7 @@ func (m *MultiCaster)Send(payload []byte)error{
 						//bylog.Error("WriteTo err=%v",errMulticast)
 						continue
 					}
-					//bylog.Debug("write ok")
+					bylog.Debug("write ok")
 				} else {
 					p26 :=  m.tx.(*ipv6.PacketConn)
 					if errMulticast := p26.SetMulticastInterface(&ifaces[i]); errMulticast != nil {

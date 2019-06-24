@@ -4,8 +4,11 @@ import (
 	"bylib/bydefine"
 	"bylib/bylog"
 	"bylib/byopenwrt"
+	byutil "bylib/byutils"
 	"encoding/json"
+	"fmt"
 	"github.com/tidwall/gjson"
+	"os"
 )
 
 type Request struct{
@@ -23,8 +26,9 @@ type RequestNetCfg struct{
 }
 type ResponseDiscovery struct{
 	Response
-	NetCfg byopenwrt.NetConfig `json:"net_cfg"`
-	Product bydefine.ProductModel `json:"product"`
+	byopenwrt.NetConfig
+	bydefine.ProductModel
+	Version string `json:"version"`
 }
 func ErrorResponse(cmd string,errCode int, msg string)error{
 	resp:=Response{
@@ -41,8 +45,10 @@ func ErrorResponse(cmd string,errCode int, msg string)error{
 func SuccResponse(resp interface{})error{
 	data,err:=json.Marshal(resp)
 	if err!=nil{
+		bylog.Error("SuccResponse Marshal err=%v",err)
 		return err
 	}
+	bylog.Debug("send %s",string(data))
 	return discovery.Send(data)
 }
 var discovery MultiCaster
@@ -80,7 +86,7 @@ func discoveryNotify(discovered Discovered) {
 	result:=gjson.Parse(string(discovered.Payload))
 
 	cmd:=result.Get("cmd").String()
-
+	bylog.Debug("cmd=%s",cmd)
 	switch cmd {
 	case REQ_DISCOVEY:
 		discoveryNetCfg(cmd,result)
@@ -109,7 +115,7 @@ func discoveryNotify(discovered Discovered) {
  */
 //修改网络配置.
 func modifyNetCfg(cmd string,msg gjson.Result)error  {
-	ifname:=msg.Get("ifname").String()
+	ifname:=msg.Get("if_name").String()
 	netcfg:=byopenwrt.NetConfig{}
 	if err:=byopenwrt.GetNetWorkConfig(ifname,&netcfg);err!=nil{
 		return ErrorResponse(cmd,1,err.Error())
@@ -126,15 +132,17 @@ func modifyNetCfg(cmd string,msg gjson.Result)error  {
 	if err:=byopenwrt.SetNetWork(ifname,&netcfg);err!=nil{
 		return ErrorResponse(cmd,2, err.Error())
 	}
+	os.Exit(0)
 	return nil
 }
 
 
 func discoveryNetCfg(cmd string,msg gjson.Result)error  {
-
-	ifname:=msg.Get("ifname").String()
+	bylog.Debug("discoveryNetCfg")
+	ifname:=msg.Get("if_name").String()
 	netcfg:=byopenwrt.NetConfig{}
 	if err:=byopenwrt.GetNetWorkConfig(ifname,&netcfg);err!=nil{
+		bylog.Error("GetNetWorkConfig err=%v",err)
 		return ErrorResponse(cmd,1,err.Error())
 	}
 
@@ -144,13 +152,15 @@ func discoveryNetCfg(cmd string,msg gjson.Result)error  {
 			Error:0,
 			Message:"ok",
 		},
-		NetCfg:netcfg,
-		Product:product,
+		NetConfig:netcfg,
+		ProductModel:product,
+		Version:fmt.Sprintf("V%s-%s",byutil.BuildVersion,byutil.BuildTime),
 	})
 }
 func Discovery(model bydefine.ProductModel){
 	product = model
 	if err:=discovery.Listen(Settings{
+		MulticastAddress:"224.55.55.55",
 		Notify: discoveryNotify,
 	});err!=nil{
 		bylog.Error("Discovery listen err=%v",err)
